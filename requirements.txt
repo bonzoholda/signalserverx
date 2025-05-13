@@ -8,4 +8,4 @@ fernet
 numpy
 pandas
 jinja2
-okx
+okx-api
