@@ -168,13 +168,21 @@ def signal_loop():
                 print(f"[OKX SIGNAL] {sig} @ {last['close']} (OHLCV)")
             else:
                 # Fallback mode
-                price = get_okx_ticker(trading_pair)
+                tick = market_api.get_ticker(instId=trading_pair)
+                price_str = tick['data'][0]['last']
                 
-                if price:
+                if price_str and price_str != '':
+                    price = float(price_str)
                     fallback_prices.append(price)
 
                     if len(fallback_prices) >= fallback_prices.maxlen:
-                        df = pd.DataFrame(fallback_prices, columns=['close'])
+                        # Convert to NumPy array before creating DataFrame
+                        price_array = np.array(fallback_prices, dtype=np.float32)
+                        df = pd.DataFrame(price_array, columns=['close'])
+
+                        # Add dummy timestamp column to match expected structure
+                        df['timestamp'] = pd.date_range(end=pd.Timestamp.now(), periods=len(df), freq=f'{fallback_interval_sec}s')
+
                         df = calculate_rsi(df)
                         df = generate_signals(df)
                         signal = df.iloc[-1]['signal_type']
