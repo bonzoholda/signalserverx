@@ -26,7 +26,7 @@ app.add_middleware(
 )
 
 trading_pair = "ETH-USDT"
-candle_tf = "1h"
+candle_tf = "15m"
 
 # OKX API client (no need for auth for public market data)
 market_api = MarketAPI()
