@@ -11,6 +11,7 @@ import gc
 from dotenv import load_dotenv
 from okx.MarketData import MarketAPI
 
+
 load_dotenv()
 
 app = FastAPI()
@@ -40,14 +41,19 @@ def get_okx_ohlcv(symbol="MATIC-USDT", bar="5m", limit=100):
         # OKX returns candles in reverse-chronological order
         raw = market_api.get_candlesticks(instId=symbol, bar=bar, limit=limit)
         df = pd.DataFrame(raw['data'], columns=[
-            'timestamp', 'open', 'high', 'low', 'close', 'volume', '_quoteVol', '_count'
+            'timestamp', 'open', 'high', 'low', 'close', 'volume', 'volumeCcy', 'volumeCcyQuote', 'confirm'
         ])
+
         df['timestamp'] = pd.to_datetime(df['timestamp'].astype('int64'), unit='ms')
         df[['open', 'high', 'low', 'close', 'volume']] = df[['open', 'high', 'low', 'close', 'volume']].astype('float32')
+
         df.sort_values('timestamp', inplace=True)  # Ensure oldest first
         return df
     except Exception as e:
         print(f"[OKX fetch error] {type(e).__name__}: {e}")
+        print(f"[DEBUG] Sample raw data: {raw['data'][0]}")
+        print(f"[DEBUG] Columns returned: {len(raw['data'][0])}")
+
         return pd.DataFrame()
 
 # RSI Calculation
