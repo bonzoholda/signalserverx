@@ -25,18 +25,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+trading_pair = "PI-USDT"
+
 # OKX API client (no need for auth for public market data)
 market_api = MarketAPI()
 
 latest_signal = {
-    "pair": "MATIC-USDT",
+    "pair": trading_pair,
     "signal": "initializing",
     "price": None,
     "timestamp": None
 }
 
 # Fetch historical OHLCV candles from OKX
-def get_okx_ohlcv(symbol="MATIC-USDT", bar="5m", limit=100):
+def get_okx_ohlcv(symbol=trading_pair, bar="5m", limit=100):
     try:
         # OKX returns candles in reverse-chronological order
         raw = market_api.get_candlesticks(instId=symbol, bar=bar, limit=limit)
