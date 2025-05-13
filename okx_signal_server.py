@@ -151,40 +151,53 @@ def signal_loop():
             else:
                 # Fallback mode
                 tick = market_api.get_ticker(instId=trading_pair)
-                price = float(tick['data'][0]['last'])
-                fallback_prices.append(price)
+                price_str = tick['data'][0]['last']
+                
+                # Check if price_str is valid before converting to float
+                if price_str and price_str != '':
+                    price = float(price_str)
+                    fallback_prices.append(price)
 
-                if len(fallback_prices) >= fallback_prices.maxlen:
-                    df = pd.DataFrame(fallback_prices, columns=['close'])
-                    df = calculate_rsi(df)
-                    df = generate_signals(df)
-                    signal = df.iloc[-1]['signal_type']
+                    if len(fallback_prices) >= fallback_prices.maxlen:
+                        df = pd.DataFrame(fallback_prices, columns=['close'])
+                        df = calculate_rsi(df)
+                        df = generate_signals(df)
+                        signal = df.iloc[-1]['signal_type']
 
-                    if signal == 'buy':
-                        sig = 'long'
-                    elif signal == 'sell':
-                        sig = 'short'
+                        if signal == 'buy':
+                            sig = 'long'
+                        elif signal == 'sell':
+                            sig = 'short'
+                        else:
+                            sig = 'no-signals'
+
+                        latest_signal = {
+                            "pair": trading_pair,
+                            "signal": sig + " (fallback)",
+                            "price": price,
+                            "timestamp": int(time.time())
+                        }
+                        print(f"[FALLBACK SIGNAL] {sig} @ {price}")
                     else:
-                        sig = 'no-signals'
-
-                    latest_signal = {
-                        "pair": trading_pair,
-                        "signal": sig + " (fallback)",
-                        "price": float(price),
-                        "timestamp": int(time.time())
-                    }
-                    print(f"[FALLBACK SIGNAL] {sig} @ {price}")
+                        latest_signal = {
+                            "pair": trading_pair,
+                            "signal": "gathering-fallback",
+                            "price": price,
+                            "timestamp": int(time.time())
+                        }
+                        print(f"[FALLBACK] logging... {price}")
                 else:
+                    print("[FALLBACK ERROR] Received invalid price from OKX")
                     latest_signal = {
                         "pair": trading_pair,
-                        "signal": "gathering-fallback",
-                        "price": price,
+                        "signal": "invalid-price",
+                        "price": None,
                         "timestamp": int(time.time())
                     }
-                    print(f"[FALLBACK] logging... {price}")
         except Exception as e:
             print(f"[Loop Error] {type(e).__name__}: {e}")
         time.sleep(fallback_interval_sec)
+
 
 # === Start Background Thread ===
 @app.on_event("startup")
