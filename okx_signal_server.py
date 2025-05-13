@@ -3,20 +3,13 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from threading import Thread
 from collections import deque
-import os
 import requests
 import pandas as pd
 import numpy as np
 import time
-import gc
-from dotenv import load_dotenv
-from okx.MarketData import MarketAPI
-
-load_dotenv()
 
 app = FastAPI()
 
-# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,16 +19,13 @@ app.add_middleware(
 )
 
 # === CONFIG ===
-trading_pair = "PI-USDT"   # CHANGE THIS IF NEEDED
+trading_pair = "PI-USDT"
 candle_tf = "15m"
-fallback_window_sec = 180  # 3 minutes
-fallback_interval_sec = 15  # 15-second intervals
+fallback_window_sec = 180
+fallback_interval_sec = 15
 fallback_prices = deque(maxlen=fallback_window_sec // fallback_interval_sec)
 
-# === OKX API client (public access) ===
-market_api = MarketAPI()
-
-# === Global signal storage ===
+# === Signal store ===
 latest_signal = {
     "pair": trading_pair,
     "signal": "initializing",
@@ -43,10 +33,12 @@ latest_signal = {
     "timestamp": None
 }
 
-# === Fetch historical OHLCV ===
-def get_okx_ohlcv(symbol=trading_pair, bar=candle_tf, limit=100):
+# === Get historical OHLCV from OKX ===
+def get_okx_ohlcv(symbol, bar="15m", limit=100):
     try:
-        raw = market_api.get_candlesticks(instId=symbol, bar=bar, limit=limit)
+        url = f"https://www.okx.com/api/v5/market/candles?instId={symbol}&bar={bar}&limit={limit}"
+        res = requests.get(url)
+        raw = res.json()
         df = pd.DataFrame(raw['data'], columns=[
             'timestamp', 'open', 'high', 'low', 'close', 'volume',
             'volumeCcy', 'volumeCcyQuote', 'confirm'
@@ -59,7 +51,7 @@ def get_okx_ohlcv(symbol=trading_pair, bar=candle_tf, limit=100):
         print(f"[OHLCV ERROR] {type(e).__name__}: {e}")
         return pd.DataFrame()
 
-# === RSI Calculation ===
+# === RSI calculation ===
 def calculate_rsi(df, period=14):
     delta = df['close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -68,7 +60,7 @@ def calculate_rsi(df, period=14):
     df['rsi'] = 100 - (100 / (1 + rs))
     return df
 
-# === Detect Divergence ===
+# === Detect divergence ===
 def detect_divergence(df, lookback=20):
     df = df.copy()
     df['local_min'] = df['close'][df['close'] == df['close'].rolling(window=5, center=True).min()]
@@ -88,7 +80,7 @@ def detect_divergence(df, lookback=20):
             bearish_div = True
     return bullish_div, bearish_div
 
-# === Generate Signals ===
+# === Signal generator ===
 def generate_signals(df, local_window=5):
     df['sma'] = df['close'].rolling(window=20).mean()
     deviation = 0.01
@@ -118,22 +110,19 @@ def generate_signals(df, local_window=5):
 
     return df
 
-# === Fetch OKX Ticker (Fallback Mode) ===
-def get_okx_ticker(pair):
+# === Fallback price fetch from OKX public REST ===
+def fetch_current_price(pair):
     try:
         url = f"https://www.okx.com/api/v5/market/ticker?instId={pair}"
         response = requests.get(url)
-        response.raise_for_status()  # Raise an error for bad status codes
         data = response.json()
-
-        if 'data' in data and len(data['data']) > 0:
-            price_str = data['data'][0].get('last', None)
-            if price_str:
-                return float(price_str)
-        print("[FALLBACK ERROR] Invalid price data received from OKX API")
-        return None
+        price_str = data['data'][0].get('last', None)
+        if price_str and price_str.strip() != '':
+            return float(price_str)
+        else:
+            return None
     except Exception as e:
-        print(f"[FALLBACK ERROR] Error fetching ticker data: {str(e)}")
+        print(f"[FALLBACK ERROR] {type(e).__name__}: {e}")
         return None
 
 # === Signal Loop ===
@@ -168,21 +157,12 @@ def signal_loop():
                 print(f"[OKX SIGNAL] {sig} @ {last['close']} (OHLCV)")
             else:
                 # Fallback mode
-                tick = market_api.get_ticker(instId=trading_pair)
-                price_str = tick['data'][0]['last']
-                
-                if price_str and price_str != '':
-                    price = float(price_str)
+                price = fetch_current_price(trading_pair)
+                if price:
                     fallback_prices.append(price)
 
                     if len(fallback_prices) >= fallback_prices.maxlen:
-                        # Convert to NumPy array before creating DataFrame
-                        price_array = np.array(fallback_prices, dtype=np.float32)
-                        df = pd.DataFrame(price_array, columns=['close'])
-
-                        # Add dummy timestamp column to match expected structure
-                        df['timestamp'] = pd.date_range(end=pd.Timestamp.now(), periods=len(df), freq=f'{fallback_interval_sec}s')
-
+                        df = pd.DataFrame(list(fallback_prices), columns=['close'])
                         df = calculate_rsi(df)
                         df = generate_signals(df)
                         signal = df.iloc[-1]['signal_type']
@@ -210,24 +190,23 @@ def signal_loop():
                         }
                         print(f"[FALLBACK] logging... {price}")
                 else:
-                    print("[FALLBACK ERROR] Received invalid price from OKX")
                     latest_signal = {
                         "pair": trading_pair,
                         "signal": "invalid-price",
                         "price": None,
                         "timestamp": int(time.time())
                     }
+
         except Exception as e:
             print(f"[Loop Error] {type(e).__name__}: {e}")
         time.sleep(fallback_interval_sec)
 
-
-# === Start Background Thread ===
+# === Background task ===
 @app.on_event("startup")
-def start_loop():
+def start_signal_loop():
     Thread(target=signal_loop, daemon=True).start()
 
-# === Signal API ===
+# === API endpoint ===
 @app.get("/api/signal")
 def get_signal():
     return JSONResponse(latest_signal)
