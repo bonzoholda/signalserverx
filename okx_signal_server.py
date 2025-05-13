@@ -28,8 +28,8 @@ app.add_middleware(
 # === CONFIG ===
 trading_pair = "PI-USDT"   # CHANGE THIS IF NEEDED
 candle_tf = "15m"
-fallback_window_sec = 180
-fallback_interval_sec = 15
+fallback_window_sec = 180  # 3 minutes
+fallback_interval_sec = 15  # 15-second intervals
 fallback_prices = deque(maxlen=fallback_window_sec // fallback_interval_sec)
 
 # === OKX API client (public access) ===
@@ -118,6 +118,24 @@ def generate_signals(df, local_window=5):
 
     return df
 
+# === Fetch OKX Ticker (Fallback Mode) ===
+def get_okx_ticker(pair):
+    try:
+        url = f"https://www.okx.com/api/v5/market/ticker?instId={pair}"
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an error for bad status codes
+        data = response.json()
+
+        if 'data' in data and len(data['data']) > 0:
+            price_str = data['data'][0].get('last', None)
+            if price_str:
+                return float(price_str)
+        print("[FALLBACK ERROR] Invalid price data received from OKX API")
+        return None
+    except Exception as e:
+        print(f"[FALLBACK ERROR] Error fetching ticker data: {str(e)}")
+        return None
+
 # === Signal Loop ===
 def signal_loop():
     global latest_signal
@@ -150,12 +168,9 @@ def signal_loop():
                 print(f"[OKX SIGNAL] {sig} @ {last['close']} (OHLCV)")
             else:
                 # Fallback mode
-                tick = market_api.get_ticker(instId=trading_pair)
-                price_str = tick['data'][0]['last']
+                price = get_okx_ticker(trading_pair)
                 
-                # Check if price_str is valid before converting to float
-                if price_str and price_str != '':
-                    price = float(price_str)
+                if price:
                     fallback_prices.append(price)
 
                     if len(fallback_prices) >= fallback_prices.maxlen:
