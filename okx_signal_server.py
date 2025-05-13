@@ -25,7 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-trading_pair = "PI-USDT"
+trading_pair = "ETH-USDT"
 candle_tf = "1h"
 
 # OKX API client (no need for auth for public market data)
