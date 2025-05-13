@@ -126,7 +126,7 @@ def generate_signals(df, local_window=5):
 # Signal loop using OKX price feed
 def signal_loop():
     global latest_signal
-    pair = "MATIC-USDT"
+    pair = trading_pair
     while True:
         try:
             df = get_okx_ohlcv(symbol=pair, bar="5m", limit=100)
