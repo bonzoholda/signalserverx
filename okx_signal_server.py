@@ -38,7 +38,7 @@ latest_signal = {
 }
 
 # Fetch historical OHLCV candles from OKX
-def get_okx_ohlcv(symbol=trading_pair, bar="15m", limit=100):
+def get_okx_ohlcv(symbol=trading_pair, bar="1h", limit=100):
     try:
         # OKX returns candles in reverse-chronological order
         raw = market_api.get_candlesticks(instId=symbol, bar=bar, limit=limit)
