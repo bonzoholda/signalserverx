@@ -9,8 +9,7 @@ import numpy as np
 import time
 import gc
 from dotenv import load_dotenv
-from okx import MarketAPI
-
+from okx.MarketData import MarketAPI
 
 load_dotenv()
 
