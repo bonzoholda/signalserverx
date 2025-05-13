@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+web3
+gspread
+python-dotenv
+python-binance
+cryptography
+fernet
+numpy
+pandas
+jinja2
