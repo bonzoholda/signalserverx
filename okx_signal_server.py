@@ -151,9 +151,10 @@ def signal_loop():
             latest_signal = {
                 "pair": pair,
                 "signal": sig,
-                "price": last['close'],
+                "price": float(last['close']),  # Ensure serializable
                 "timestamp": int(time.time())
             }
+
 
             print(f"[OKX SIGNAL] {sig} @ {last['close']}")
         except Exception as e:
