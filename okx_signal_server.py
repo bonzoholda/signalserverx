@@ -180,9 +180,9 @@ def signal_loop():
                     sig = 'long-divergence'
                 elif bear_div:
                     sig = 'short-divergence'
-                elif signal == 'buy':
+                elif signal == 'uptrend':
                     sig = 'long'
-                elif signal == 'sell':
+                elif signal == 'downtrend':
                     sig = 'short'
                 else:
                     sig = 'no-signals'
