@@ -87,20 +87,21 @@ def detect_short_trend(df):
     df['red'] = df['close'] < df['open']
 
     df['uptrend'] = (
-        df['green']
-        & df['close'] > df['close'].shift(1)
-        & df['close'].shift(1) > df['close'].shift(2)
-        & df['green'].shift(1)
-        & df['green'].shift(2)
+        (df['green'])
+        & (df['close'] > df['close'].shift(1))
+        & (df['close'].shift(1) > df['close'].shift(2))
+        & (df['green'].shift(1))
+        & (df['green'].shift(2))
+    )
+    
+    df['downtrend'] = (
+        (df['red'])
+        & (df['close'] < df['close'].shift(1))
+        & (df['close'].shift(1) < df['close'].shift(2))
+        & (df['red'].shift(1))
+        & (df['red'].shift(2))
     )
 
-    df['downtrend'] = (
-        df['red']
-        & df['close'] < df['close'].shift(1)
-        & df['close'].shift(1) < df['close'].shift(2)
-        & df['red'].shift(1)
-        & df['red'].shift(2)
-    )
 
     return df
 
