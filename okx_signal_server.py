@@ -80,6 +80,31 @@ def detect_divergence(df, lookback=20):
             bearish_div = True
     return bullish_div, bearish_div
 
+# === Detect short trend ===
+def detect_short_trend(df):
+    df = df.copy()
+    df['green'] = df['close'] > df['open']
+    df['red'] = df['close'] < df['open']
+
+    df['uptrend'] = (
+        df['green']
+        & df['close'] > df['close'].shift(1)
+        & df['close'].shift(1) > df['close'].shift(2)
+        & df['green'].shift(1)
+        & df['green'].shift(2)
+    )
+
+    df['downtrend'] = (
+        df['red']
+        & df['close'] < df['close'].shift(1)
+        & df['close'].shift(1) < df['close'].shift(2)
+        & df['red'].shift(1)
+        & df['red'].shift(2)
+    )
+
+    return df
+
+
 # === Signal generator ===
 def generate_signals(df, local_window=5):
     df['sma'] = df['close'].rolling(window=20).mean()
@@ -87,6 +112,8 @@ def generate_signals(df, local_window=5):
     df['upper_band'] = df['sma'] * (1 + deviation)
     df['lower_band'] = df['sma'] * (1 - deviation)
     df = calculate_rsi(df)
+    df = detect_short_trend(df)  # <-- Add this here
+    
     df['rolling_min'] = df['close'].rolling(window=local_window).min()
     df['rolling_max'] = df['close'].rolling(window=local_window).max()
 
@@ -101,13 +128,25 @@ def generate_signals(df, local_window=5):
         & (df['close'] > df['upper_band'])
     )
 
+    # Reset first
     df['signal'] = 0
     df['signal_type'] = None
-    df.loc[buy, 'signal'] = 1
-    df.loc[buy, 'signal_type'] = 'buy'
-    df.loc[sell, 'signal'] = -1
-    df.loc[sell, 'signal_type'] = 'sell'
 
+    # Apply trend-based signals first
+    df.loc[df['uptrend'], 'signal'] = 1
+    df.loc[df['uptrend'], 'signal_type'] = 'uptrend'
+
+    df.loc[df['downtrend'], 'signal'] = -1
+    df.loc[df['downtrend'], 'signal_type'] = 'downtrend'
+
+    # Optional: If you want to use your existing Bollinger-based signals as fallback
+    df.loc[buy & ~df['uptrend'], 'signal'] = 1
+    df.loc[buy & ~df['uptrend'], 'signal_type'] = 'buy'
+
+    df.loc[sell & ~df['downtrend'], 'signal'] = -1
+    df.loc[sell & ~df['downtrend'], 'signal_type'] = 'sell'
+
+    
     return df
 
 # === Fallback price fetch from OKX public REST ===
