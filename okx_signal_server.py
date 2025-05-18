@@ -54,31 +54,48 @@ def get_okx_ohlcv(symbol, bar="15m", limit=100):
 # === RSI calculation ===
 def calculate_rsi(df, period=14):
     delta = df['close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(window=period).mean()
+    avg_loss = loss.rolling(window=period).mean()
+    rs = avg_gain / avg_loss
     df['rsi'] = 100 - (100 / (1 + rs))
     return df
 
 # === Detect divergence ===
 def detect_divergence(df, lookback=20):
+    from scipy.signal import argrelextrema
     df = df.copy()
-    df['local_min'] = df['close'][df['close'] == df['close'].rolling(window=5, center=True).min()]
-    df['local_max'] = df['close'][df['close'] == df['close'].rolling(window=5, center=True).max()]
-    recent_lows = df[['timestamp', 'close', 'rsi']][df['local_min'].notnull()].tail(lookback)
-    recent_highs = df[['timestamp', 'close', 'rsi']][df['local_max'].notnull()].tail(lookback)
+
+    # Ensure RSI is present
+    if 'rsi' not in df.columns:
+        df = calculate_rsi(df)
+
+    # Find local minima/maxima in close prices
+    df['min_idx'] = df['close'].iloc[argrelextrema(df['close'].values, np.less_equal, order=3)[0]]
+    df['max_idx'] = df['close'].iloc[argrelextrema(df['close'].values, np.greater_equal, order=3)[0]]
+
+    # Recent local extrema
+    recent_lows = df[df['min_idx'].notnull()][['timestamp', 'close', 'rsi']].tail(lookback)
+    recent_highs = df[df['max_idx'].notnull()][['timestamp', 'close', 'rsi']].tail(lookback)
 
     bullish_div = False
     bearish_div = False
+
+    # Bullish divergence: price makes lower low, RSI makes higher low
     if len(recent_lows) >= 2:
         p1, p2 = recent_lows.iloc[-2], recent_lows.iloc[-1]
         if p2['close'] < p1['close'] and p2['rsi'] > p1['rsi']:
             bullish_div = True
+
+    # Bearish divergence: price makes higher high, RSI makes lower high
     if len(recent_highs) >= 2:
         p1, p2 = recent_highs.iloc[-2], recent_highs.iloc[-1]
         if p2['close'] > p1['close'] and p2['rsi'] < p1['rsi']:
             bearish_div = True
+
     return bullish_div, bearish_div
+
 
 # === Detect short trend ===
 def detect_short_trend(df):
