@@ -206,9 +206,9 @@ def signal_loop():
                         df = generate_signals(df)
                         signal = df.iloc[-1]['signal_type']
 
-                        if signal == 'buy':
+                        if signal == 'uptrend':
                             sig = 'long'
-                        elif signal == 'sell':
+                        elif signal == 'downtrend':
                             sig = 'short'
                         else:
                             sig = 'no-signals'
