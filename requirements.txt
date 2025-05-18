@@ -9,3 +9,4 @@ numpy
 pandas
 jinja2
 python-okx
+scipy
