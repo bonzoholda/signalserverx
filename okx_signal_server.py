@@ -134,18 +134,10 @@ def generate_signals(df, local_window=5):
 
     # Apply trend-based signals first
     df.loc[df['uptrend'], 'signal'] = 1
-    df.loc[df['uptrend'], 'signal_type'] = 'uptrend'
+    df.loc[df['uptrend'], 'signal_type'] = 'buy'
 
     df.loc[df['downtrend'], 'signal'] = -1
-    df.loc[df['downtrend'], 'signal_type'] = 'downtrend'
-
-    # Optional: If you want to use your existing Bollinger-based signals as fallback
-    df.loc[buy & ~df['uptrend'], 'signal'] = 1
-    df.loc[buy & ~df['uptrend'], 'signal_type'] = 'buy'
-
-    df.loc[sell & ~df['downtrend'], 'signal'] = -1
-    df.loc[sell & ~df['downtrend'], 'signal_type'] = 'sell'
-
+    df.loc[df['downtrend'], 'signal_type'] = 'sell'
     
     return df
 
@@ -180,9 +172,9 @@ def signal_loop():
                     sig = 'long-divergence'
                 elif bear_div:
                     sig = 'short-divergence'
-                elif signal == 'uptrend':
+                elif signal == 'buy':
                     sig = 'long'
-                elif signal == 'downtrend':
+                elif signal == 'sell':
                     sig = 'short'
                 else:
                     sig = 'no-signals'
@@ -206,9 +198,9 @@ def signal_loop():
                         df = generate_signals(df)
                         signal = df.iloc[-1]['signal_type']
 
-                        if signal == 'uptrend':
+                        if signal == 'buy':
                             sig = 'long'
-                        elif signal == 'downtrend':
+                        elif signal == 'sell':
                             sig = 'short'
                         else:
                             sig = 'no-signals'
