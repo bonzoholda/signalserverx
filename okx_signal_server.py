@@ -20,7 +20,7 @@ app.add_middleware(
 
 # === CONFIG ===
 trading_pair = "PI-USDT"
-candle_tf = "15m"
+candle_tf = "5m"
 fallback_window_sec = 180
 fallback_interval_sec = 15
 fallback_prices = deque(maxlen=fallback_window_sec // fallback_interval_sec)
@@ -34,7 +34,7 @@ latest_signal = {
 }
 
 # === Get historical OHLCV from OKX ===
-def get_okx_ohlcv(symbol, bar="15m", limit=100):
+def get_okx_ohlcv(symbol, bar="5m", limit=100):
     try:
         url = f"https://www.okx.com/api/v5/market/candles?instId={symbol}&bar={bar}&limit={limit}"
         res = requests.get(url)
