@@ -3,24 +3,24 @@ import numpy as np
 import requests
 import time
 import joblib
+import os
+import threading
 from ta.momentum import RSIIndicator
 from ta.trend import MACD, SMAIndicator
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-import os
+from sklearn.model_selection import train_test_split, GridSearchCV
 
 os.makedirs("models", exist_ok=True)
 
 
-
 class MLSignalGeneratorOKX:
-    def __init__(self, symbol="PI-USDT", interval="15m", train=False):
+    def __init__(self, symbol="PI-USDT", interval="15m", train=False, auto_retrain=True):
         self.symbol = symbol
         self.interval = interval
-
         self.model_path = f"models/ml_model_{symbol.replace('-', '')}.pkl"
+        self.model = RandomForestClassifier(random_state=42)
+        self.lock = threading.Lock()  # for thread-safe retraining
 
-        self.model = RandomForestClassifier(n_estimators=100, random_state=42)
         if train:
             self.train_model()
         else:
@@ -30,27 +30,26 @@ class MLSignalGeneratorOKX:
                 print("Model not found. Training...")
                 self.train_model()
 
+        if auto_retrain:
+            retrain_thread = threading.Thread(target=self.retrain_loop, daemon=True)
+            retrain_thread.start()
+
     def fetch_ohlcv(self, limit=1000):
         url = f"https://www.okx.com/api/v5/market/candles?instId={self.symbol}&bar={self.interval}&limit={limit}"
         resp = requests.get(url)
         data = resp.json()
         if data["code"] != "0":
             raise Exception(f"OKX error: {data['msg']}")
-        
         df = pd.DataFrame(data["data"], columns=[
             "timestamp", "open", "high", "low", "close",
             "volume", "volCcy", "volCcyQuote", "confirm"
         ])
-
         df = df.iloc[::-1]  # Oldest first
         df = df.astype({
-            "open": float, "high": float, "low": float, 
+            "open": float, "high": float, "low": float,
             "close": float, "volume": float
         })
-
         df["timestamp"] = pd.to_datetime(pd.to_numeric(df["timestamp"]), unit="ms")
-
-        
         return df[["timestamp", "open", "high", "low", "close", "volume"]]
 
     def add_indicators(self, df):
@@ -71,21 +70,53 @@ class MLSignalGeneratorOKX:
         return df
 
     def train_model(self):
-        df = self.fetch_ohlcv(limit=300)
-        df = self.add_indicators(df)
-        df = self.create_labels(df)
-        X = df[['rsi', 'sma', 'macd', 'macd_signal']]
-        y = df['signal']
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        self.model.fit(X_train, y_train)
-        joblib.dump(self.model, self.model_path)
-        print(f"Trained model saved as {self.model_path}")
-        print(f"Accuracy: {self.model.score(X_test, y_test):.2%}")
+        try:
+            df = self.fetch_ohlcv(limit=1000)
+            df = self.add_indicators(df)
+            df = self.create_labels(df)
+
+            X = df[['rsi', 'sma', 'macd', 'macd_signal']]
+            y = df['signal']
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+            param_grid = {
+                'n_estimators': [100, 200],
+                'max_depth': [4, 6, 10],
+                'min_samples_split': [2, 5],
+            }
+
+            grid = GridSearchCV(
+                RandomForestClassifier(random_state=42),
+                param_grid,
+                cv=3,
+                scoring='accuracy',
+                n_jobs=-1,
+                verbose=0
+            )
+            grid.fit(X_train, y_train)
+
+            with self.lock:
+                self.model = grid.best_estimator_
+                joblib.dump(self.model, self.model_path)
+
+            print(f"[{self.symbol}] Model retrained and saved.")
+            print(f"[{self.symbol}] Best params: {grid.best_params_}")
+            print(f"[{self.symbol}] Accuracy: {self.model.score(X_test, y_test):.2%}")
+        except Exception as e:
+            print(f"Retraining error: {e}")
+
+    def retrain_loop(self):
+        while True:
+            print(f"[{self.symbol}] Auto-retraining started.")
+            self.train_model()
+            print(f"[{self.symbol}] Next retrain in 24h.")
+            time.sleep(86400)
 
     def predict_signal(self):
         df = self.fetch_ohlcv(limit=100)
         df = self.add_indicators(df)
         latest = df.tail(1)
         X_live = latest[['rsi', 'sma', 'macd', 'macd_signal']]
-        pred = self.model.predict(X_live)[0]
+        with self.lock:
+            pred = self.model.predict(X_live)[0]
         return {1: "BUY", -1: "SELL", 0: "HOLD"}[pred]
