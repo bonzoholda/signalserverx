@@ -30,7 +30,7 @@ class MLSignalGeneratorOKX:
                 print("Model not found. Training...")
                 self.train_model()
 
-    def fetch_ohlcv(self, limit=300):
+    def fetch_ohlcv(self, limit=1000):
         url = f"https://www.okx.com/api/v5/market/candles?instId={self.symbol}&bar={self.interval}&limit={limit}"
         resp = requests.get(url)
         data = resp.json()
