@@ -47,7 +47,10 @@ class MLSignalGeneratorOKX:
             "open": float, "high": float, "low": float, 
             "close": float, "volume": float
         })
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+
+        df["timestamp"] = pd.to_datetime(pd.to_numeric(df["timestamp"]), unit="ms")
+
+        
         return df[["timestamp", "open", "high", "low", "close", "volume"]]
 
     def add_indicators(self, df):
