@@ -10,3 +10,7 @@ pandas
 jinja2
 python-okx
 scipy
+scikit-learn
+ta
+requests
+joblib
