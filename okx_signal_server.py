@@ -7,6 +7,8 @@ import requests
 import pandas as pd
 import numpy as np
 import time
+from ml_signal_generator_okx import MLSignalGeneratorOKX
+
 
 app = FastAPI()
 
@@ -32,6 +34,11 @@ latest_signal = {
     "price": None,
     "timestamp": None
 }
+
+generator = MLSignalGeneratorOKX(symbol=trading_pair, interval=candle_tf)
+signal = generator.predict_signal()
+print("ML Signal:", signal)
+
 
 # === Get historical OHLCV from OKX ===
 def get_okx_ohlcv(symbol, bar="15m", limit=100):
@@ -184,15 +191,23 @@ def signal_loop():
                 df = generate_signals(df)
                 bull_div, bear_div = detect_divergence(df)
                 last = df.iloc[-1]
-                signal = last['signal_type']
 
+                # Traditional signal
+                ta_signal = last['signal_type']
+
+                # ML signal
+                ml_signal = generator.predict_signal()
+
+                # Priority logic
                 if bull_div:
                     sig = 'long-divergence'
                 elif bear_div:
                     sig = 'short-divergence'
-                elif signal == 'buy':
+                elif ml_signal in ['long', 'short']:
+                    sig = f"{ml_signal}-ml"
+                elif ta_signal == 'buy':
                     sig = 'long'
-                elif signal == 'sell':
+                elif ta_signal == 'sell':
                     sig = 'short'
                 else:
                     sig = 'no-signals'
@@ -203,7 +218,7 @@ def signal_loop():
                     "price": float(last['close']),
                     "timestamp": int(time.time())
                 }
-                print(f"[OKX SIGNAL] {sig} @ {last['close']} (OHLCV)")
+                print(f"[OKX SIGNAL] {sig} @ {last['close']} (OHLCV + ML)")
             else:
                 # Fallback mode
                 price = fetch_current_price(trading_pair)
