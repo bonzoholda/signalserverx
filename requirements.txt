@@ -14,4 +14,3 @@ scikit-learn
 ta
 requests
 joblib
-os
