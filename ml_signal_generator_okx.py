@@ -7,12 +7,19 @@ from ta.momentum import RSIIndicator
 from ta.trend import MACD, SMAIndicator
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+import os
+
+os.makedirs("models", exist_ok=True)
+
+
 
 class MLSignalGeneratorOKX:
     def __init__(self, symbol="PI-USDT", interval="15m", train=False):
         self.symbol = symbol
         self.interval = interval
-        self.model_path = f"ml_model_{symbol.replace('-', '')}.pkl"
+
+        self.model_path = f"models/ml_model_{symbol.replace('-', '')}.pkl"
+
         self.model = RandomForestClassifier(n_estimators=100, random_state=42)
         if train:
             self.train_model()
@@ -31,8 +38,10 @@ class MLSignalGeneratorOKX:
             raise Exception(f"OKX error: {data['msg']}")
         
         df = pd.DataFrame(data["data"], columns=[
-            "timestamp", "open", "high", "low", "close", "volume", "_", "__"
+            "timestamp", "open", "high", "low", "close",
+            "volume", "volCcy", "volCcyQuote", "confirm"
         ])
+
         df = df.iloc[::-1]  # Oldest first
         df = df.astype({
             "open": float, "high": float, "low": float, 
