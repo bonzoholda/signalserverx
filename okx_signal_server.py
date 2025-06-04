@@ -200,9 +200,9 @@ def signal_loop():
 
                 # Priority logic
                 if bull_div:
-                    sig = 'long-divergence'
+                    sig = 'long-divergence-hold' ##remove -hold to activate 
                 elif bear_div:
-                    sig = 'short-divergence'
+                    sig = 'short-divergence-hold' ##remove -hold to activate
                 elif ml_signal in ['long', 'short']:
                     sig = f"{ml_signal}-ml"
                 elif ta_signal == 'buy':
