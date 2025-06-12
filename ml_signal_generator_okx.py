@@ -12,14 +12,14 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 
 os.makedirs("models", exist_ok=True)
 
-
 class MLSignalGeneratorOKX:
     def __init__(self, symbol="PI-USDT", interval="15m", train=False, auto_retrain=True):
         self.symbol = symbol
         self.interval = interval
         self.model_path = f"models/ml_model_{symbol.replace('-', '')}.pkl"
+        self.data_path = f"models/training_data_{symbol.replace('-', '')}.pkl"
         self.model = RandomForestClassifier(random_state=42)
-        self.lock = threading.Lock()  # for thread-safe retraining
+        self.lock = threading.Lock()
 
         if train:
             self.train_model()
@@ -34,7 +34,7 @@ class MLSignalGeneratorOKX:
             retrain_thread = threading.Thread(target=self.retrain_loop, daemon=True)
             retrain_thread.start()
 
-    def fetch_ohlcv(self, limit=1000):
+    def fetch_ohlcv(self, limit=100):
         url = f"https://www.okx.com/api/v5/market/candles?instId={self.symbol}&bar={self.interval}&limit={limit}"
         resp = requests.get(url)
         data = resp.json()
@@ -71,14 +71,27 @@ class MLSignalGeneratorOKX:
 
     def train_model(self):
         try:
-            df = self.fetch_ohlcv(limit=1000)
-            df = self.add_indicators(df)
-            df = self.create_labels(df)
+            # Fetch and process new data
+            new_df = self.fetch_ohlcv(limit=100)
+            new_df = self.add_indicators(new_df)
+            new_df = self.create_labels(new_df)
 
-            X = df[['rsi', 'sma', 'macd', 'macd_signal']]
-            y = df['signal']
+            new_X = new_df[['rsi', 'sma', 'macd', 'macd_signal']]
+            new_y = new_df['signal']
+
+            # Load previous data if exists
+            if os.path.exists(self.data_path):
+                old_X, old_y = joblib.load(self.data_path)
+                X = pd.concat([old_X, new_X]).tail(1000)
+                y = pd.concat([old_y, new_y]).tail(1000)
+            else:
+                X, y = new_X, new_y
+
+            # Save combined data for future retrain
+            joblib.dump((X, y), self.data_path)
+
+            # Train model
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
             param_grid = {
                 'n_estimators': [100, 200],
                 'max_depth': [4, 6, 10],
@@ -109,8 +122,8 @@ class MLSignalGeneratorOKX:
         while True:
             print(f"[{self.symbol}] Auto-retraining started.")
             self.train_model()
-            print(f"[{self.symbol}] Next retrain in 24h.")
-            time.sleep(86400)
+            print(f"[{self.symbol}] Next retrain in 6h.")
+            time.sleep(21600)  # every 6 hours
 
     def predict_signal(self):
         df = self.fetch_ohlcv(limit=100)
