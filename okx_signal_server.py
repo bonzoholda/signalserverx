@@ -129,6 +129,29 @@ def detect_short_trend(df):
 
     return df
 
+# === Dynamic TP/SL calculation ===
+def get_dynamic_tp_sl(df, risk_reward_ratio=1.5, atr_period=14):
+    """
+    Calculates TP and SL based on recent volatility (using ATR).
+    """
+    df = df.copy()
+    df['high_low'] = df['high'] - df['low']
+    df['high_close'] = np.abs(df['high'] - df['close'].shift())
+    df['low_close'] = np.abs(df['low'] - df['close'].shift())
+    df['tr'] = df[['high_low', 'high_close', 'low_close']].max(axis=1)
+    df['atr'] = df['tr'].rolling(window=atr_period).mean()
+
+    last_close = df.iloc[-1]['close']
+    last_atr = df.iloc[-1]['atr']
+
+    if pd.isna(last_atr):
+        return None, None  # Not enough data yet
+
+    stop_loss = last_atr  # 1x ATR as SL
+    take_profit = stop_loss * risk_reward_ratio  # TP = RR * SL
+
+    return round(take_profit, 5), round(stop_loss, 5)
+
 
 # === Signal generator ===
 def generate_signals(df, local_window=5):
@@ -200,22 +223,28 @@ def signal_loop():
 
                 # Priority logic
                 if bull_div:
-                    sig = 'long-divergence-hold' ##remove -hold to activate, add it back to make inactive
+                    sig = 'long-divergence' ##remove -hold to activate, add it back to make inactive
                 elif bear_div:
-                    sig = 'short-divergence-hold' ##remove -hold to activate, add it back to make inactive
+                    sig = 'short-divergence' ##remove -hold to activate, add it back to make inactive
                 elif ml_signal in ['long', 'short']:
                     sig = f"{ml_signal}-ml"
                 elif ta_signal == 'buy':
-                    sig = 'long-hold'
+                    sig = 'long'
                 elif ta_signal == 'sell':
-                    sig = 'short-hold'
+                    sig = 'short'
                 else:
                     sig = 'no-signals'
 
+
+                tp, sl = get_dynamic_tp_sl(df)
+
+                
                 latest_signal = {
                     "pair": trading_pair,
                     "signal": sig,
                     "price": float(last['close']),
+                    "tp": tp,
+                    "sl": sl,
                     "timestamp": int(time.time())
                 }
                 print(f"[OKX SIGNAL] {sig} @ {last['close']} (OHLCV + ML)")
