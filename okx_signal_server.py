@@ -220,14 +220,17 @@ def signal_loop():
 
                 # ML signal
                 ml_signal = generator.predict_signal()
+                ml_signal = ml_signal.strip().lower() if ml_signal else None
+                print(f"[ML] Predicted signal: {ml_signal}")
 
-                # Priority logic
-                if bull_div:
-                    sig = 'long' ##remove -divergence-hold to activate, add it back to make inactive
-                elif bear_div:
-                    sig = 'short' ##remove -divergence-hold to activate, add it back to make inactive
-                elif ml_signal in ['long', 'short']:
+                # === Priority signal logic (ML first for testing) ===
+                if ml_signal in ['long', 'short']:
                     sig = f"{ml_signal}-ml"
+                    print(f"[ML SELECTED] Final signal: {sig}")
+                elif bull_div:
+                    sig = 'long'
+                elif bear_div:
+                    sig = 'short'
                 elif ta_signal == 'buy':
                     sig = 'long'
                 elif ta_signal == 'sell':
@@ -235,10 +238,8 @@ def signal_loop():
                 else:
                     sig = 'no-signals'
 
-
                 tp, sl = get_dynamic_tp_sl(df)
 
-                
                 latest_signal = {
                     "pair": trading_pair,
                     "signal": sig,
@@ -247,9 +248,10 @@ def signal_loop():
                     "sl": sl,
                     "timestamp": int(time.time())
                 }
-                print(f"[OKX SIGNAL] {sig} @ {last['close']} (OHLCV + ML)")
+                print(f"[OKX SIGNAL] Final: {sig} @ {last['close']} (OHLCV + ML)")
+
             else:
-                # Fallback mode
+                # === Fallback mode ===
                 price = fetch_current_price(trading_pair)
                 if price:
                     fallback_prices.append(price)
@@ -281,7 +283,7 @@ def signal_loop():
                             "price": price,
                             "timestamp": int(time.time())
                         }
-                        print(f"[FALLBACK] logging... {price}")
+                        print(f"[FALLBACK] Logging... {price}")
                 else:
                     latest_signal = {
                         "pair": trading_pair,
@@ -293,6 +295,7 @@ def signal_loop():
         except Exception as e:
             print(f"[Loop Error] {type(e).__name__}: {e}")
         time.sleep(fallback_interval_sec)
+
 
 # === Background task ===
 @app.on_event("startup")
