@@ -225,7 +225,11 @@ def signal_loop():
 
                 # === Priority signal logic (ML first for testing) ===
                 if ml_signal in ['long', 'short']:
-                    sig = f"{ml_signal}-ml"
+                    if ml_signal == 'buy':
+                        sig = 'long'
+                    elif ml_signal == 'sell':
+                        sig = 'short'
+
                     print(f"[ML SELECTED] Final signal: {sig}")
                 elif bull_div:
                     sig = 'long-hold'
