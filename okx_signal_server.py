@@ -228,13 +228,13 @@ def signal_loop():
                     sig = f"{ml_signal}-ml"
                     print(f"[ML SELECTED] Final signal: {sig}")
                 elif bull_div:
-                    sig = 'long'
+                    sig = 'long-hold'
                 elif bear_div:
-                    sig = 'short'
+                    sig = 'short-hold'
                 elif ta_signal == 'buy':
-                    sig = 'long'
+                    sig = 'long-hold'
                 elif ta_signal == 'sell':
-                    sig = 'short'
+                    sig = 'short-hold'
                 else:
                     sig = 'no-signals'
 
