@@ -129,6 +129,40 @@ def detect_short_trend(df):
 
     return df
 
+# === Measure market strength ===
+def get_market_strength(df):
+    """
+    Analyzes RSI to determine market strength.
+    Returns: 'strong_trend', 'choppy', or 'neutral'
+    """
+    df = calculate_rsi(df)
+
+    rsi = df.iloc[-1]['rsi']
+
+    if rsi >= 65 or rsi <= 35:
+        return 'strong_trend'
+    elif 45 <= rsi <= 55:
+        return 'choppy'
+    else:
+        return 'neutral'
+
+
+# === Get DCA trigger multiplier ===
+def get_dca_trigger_price(entry_price, stop_loss, market_strength):
+    """
+    Calculates the price level to trigger DCA based on SL and market strength.
+    """
+    if market_strength == "choppy":
+        multiplier = 5
+    elif market_strength == "strong_trend":
+        multiplier = 3
+    else:  # neutral
+        multiplier = 4
+
+    return round(entry_price - (stop_loss * multiplier), 5)
+
+
+
 # === Dynamic TP/SL calculation ===
 def get_dynamic_tp_sl(df, risk_reward_ratio=1.5, atr_period=14):
     """
@@ -224,12 +258,10 @@ def signal_loop():
                 print(f"[ML] Predicted signal: {ml_signal}")
 
                 # === Priority signal logic (ML first for testing) ===
-                
                 if ml_signal == 'buy':
                     sig = 'long'
                 elif ml_signal == 'sell':
                     sig = 'short'
-
                     print(f"[ML SELECTED] Final signal: {sig}")
                 elif bull_div:
                     sig = 'long-hold'
@@ -242,7 +274,10 @@ def signal_loop():
                 else:
                     sig = 'no-signals'
 
+                # === Dynamic TP, SL, and DCA trigger calculation ===
                 tp, sl = get_dynamic_tp_sl(df)
+                market_strength = get_market_strength(df)
+                dca_trigger_price = get_dca_trigger_price(entry_price=last['close'], stop_loss=sl, market_strength=market_strength)
 
                 latest_signal = {
                     "pair": trading_pair,
@@ -250,9 +285,13 @@ def signal_loop():
                     "price": float(last['close']),
                     "tp": tp,
                     "sl": sl,
+                    "dca_trigger": dca_trigger_price,
+                    "market_strength": market_strength,
                     "timestamp": int(time.time())
                 }
+
                 print(f"[OKX SIGNAL] Final: {sig} @ {last['close']} (OHLCV + ML)")
+                print(f"[DCA] Market: {market_strength}, Trigger: {dca_trigger_price}")
 
             else:
                 # === Fallback mode ===
@@ -299,6 +338,7 @@ def signal_loop():
         except Exception as e:
             print(f"[Loop Error] {type(e).__name__}: {e}")
         time.sleep(fallback_interval_sec)
+
 
 
 # === Background task ===
