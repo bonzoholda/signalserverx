@@ -148,18 +148,26 @@ def get_market_strength(df):
 
 
 # === Get DCA trigger multiplier ===
-def get_dca_trigger_price(entry_price, stop_loss, market_strength):
+def get_dca_trigger_price(entry_price, stop_loss, market_strength, signal_side):
     """
-    Calculates the price level to trigger DCA based on SL and market strength.
+    Calculates DCA trigger price based on SL and market strength.
+    For long → trigger below entry
+    For short → trigger above entry
     """
     if market_strength == "choppy":
         multiplier = 5
     elif market_strength == "strong_trend":
         multiplier = 3
-    else:  # neutral
+    else:
         multiplier = 4
 
-    return round(entry_price - (stop_loss * multiplier), 5)
+    if signal_side == 'long':
+        return round(entry_price - (stop_loss * multiplier), 5)
+    elif signal_side == 'short':
+        return round(entry_price + (stop_loss * multiplier), 5)
+    else:
+        return None  # No valid signal
+
 
 
 
@@ -277,7 +285,13 @@ def signal_loop():
                 # === Dynamic TP, SL, and DCA trigger calculation ===
                 tp, sl = get_dynamic_tp_sl(df)
                 market_strength = get_market_strength(df)
-                dca_trigger_price = get_dca_trigger_price(entry_price=last['close'], stop_loss=sl, market_strength=market_strength)
+                dca_trigger_price = get_dca_trigger_price(
+                    entry_price=last['close'],
+                    stop_loss=sl,
+                    market_strength=market_strength,
+                    signal_side=sig if sig in ['long', 'short'] else None
+                )
+
 
                 latest_signal = {
                     "pair": trading_pair,
