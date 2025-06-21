@@ -9,6 +9,8 @@ from ta.momentum import RSIIndicator
 from ta.trend import MACD, SMAIndicator
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, GridSearchCV
+from ta.volatility import AverageTrueRange
+from ta.trend import ADXIndicator
 
 os.makedirs("models", exist_ok=True)
 
@@ -125,11 +127,33 @@ class MLSignalGeneratorOKX:
             print(f"[{self.symbol}] Next retrain in 6h.")
             time.sleep(21600)  # every 6 hours
 
+    def filter_signal(self, df, raw_signal):
+        try:
+            df['atr'] = AverageTrueRange(df['high'], df['low'], df['close'], window=14).average_true_range()
+            df['adx'] = ADXIndicator(df['high'], df['low'], df['close'], window=14).adx()
+            latest = df.iloc[-1]
+    
+            # Basic filter logic
+            if latest['atr'] < df['atr'].mean() * 0.8:
+                return "HOLD"
+            if latest['adx'] < 25:
+                return "HOLD"
+    
+            return raw_signal
+        except Exception as e:
+            print(f"Filter error: {e}")
+            return "HOLD"    
+
     def predict_signal(self):
         df = self.fetch_ohlcv(limit=100)
         df = self.add_indicators(df)
         latest = df.tail(1)
         X_live = latest[['rsi', 'sma', 'macd', 'macd_signal']]
+    
         with self.lock:
-            pred = self.model.predict(X_live)[0]
-        return {1: "BUY", -1: "SELL", 0: "HOLD"}[pred]
+            raw_pred = self.model.predict(X_live)[0]
+        raw_signal = {1: "BUY", -1: "SELL", 0: "HOLD"}[raw_pred]
+    
+        # 🔽 Run through momentum/volatility filter
+        return self.filter_signal(df, raw_signal)
+
