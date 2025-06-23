@@ -140,11 +140,11 @@ def ta_3_candle_signal(df):
     
     # Bullish pattern: 3 rising closes
     if c1 < c2 < c3 and v1 < v2 < v3:
-        return "long"
+        return "buy"
 
     # Bearish pattern: 3 falling closes
     if c1 > c2 > c3 and v1 > v2 > v3:
-        return "short"
+        return "sell"
 
     return "HOLD"
 
@@ -294,8 +294,14 @@ def signal_loop():
                     print(f"[ML SELECTED] Final signal: {sig}")
                 elif ml_signal == "hold":
                     ta_3 = ta_3_candle_signal(df)
-                    if ta_3 in ["long", "short"]:
-                        sig = ta_3
+                    if ta_3 == 'buy':
+                        sig = 'long'
+                        print(f"[TA 3C BULL BEAR] Final signal: {sig}")
+                    elif ta_3 == 'sell':
+                        sig = 'short'
+                        print(f"[TA 3C BULL BEAR] Final signal: {sig}")
+                    else:
+                        sig = 'hold-no trend detected'
                 elif bull_div:
                     sig = 'long-hold'
                 elif bear_div:
