@@ -129,6 +129,27 @@ def detect_short_trend(df):
 
     return df
 
+# === 3 candles volume confirmation ===
+def ta_3_candle_signal(df):
+    if len(df) < 3:
+        return "HOLD"
+
+    # Last 3 closes
+    c1, c2, c3 = df['close'].iloc[-3:]
+    v1, v2, v3 = df['volume'].iloc[-3:]
+    
+    # Bullish pattern: 3 rising closes
+    if c1 < c2 < c3 and v1 < v2 < v3:
+        return "long"
+
+    # Bearish pattern: 3 falling closes
+    if c1 > c2 > c3 and v1 > v2 > v3:
+        return "short"
+
+    return "HOLD"
+
+
+
 # === Measure market strength ===
 def get_market_strength(df):
     """
@@ -271,6 +292,10 @@ def signal_loop():
                 elif ml_signal == 'sell':
                     sig = 'short'
                     print(f"[ML SELECTED] Final signal: {sig}")
+                elif ml_signal == "hold":
+                    ta_3 = ta_3_candle_signal(df)
+                    if ta_3 in ["long", "short"]:
+                        sig = ta_3
                 elif bull_div:
                     sig = 'long-hold'
                 elif bear_div:
